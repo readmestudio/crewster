@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  kakaoId   String   @unique
+  nickname  String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dailyCheckIns      DailyCheckIn[]
+  diaryEntries       DiaryEntry[]
+  internalizations   Internalization[]
+  userResponses      UserResponse[]
+  counselorComments  CounselorComment[]
+  reports            Report[]
+}
+
+model DailyCheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  emotion   String
+  intensity Int      // 0-100
+  memo      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model DiaryEntry {
+  id             String   @id @default(cuid())
+  userId         String
+  date           DateTime
+  category       String?
+  beforeThoughts String?
+  afterThoughts  String?
+  hotThought     String?
+  balancedThought String?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model Internalization {
+  id               String   @id @default(cuid())
+  userId           String
+  date             DateTime
+  positiveStatement String
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model UserResponse {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  question  String
+  answer    String
+  context   String?  // 추가 컨텍스트 정보
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model CounselorComment {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime
+  comment     String
+  counselorId String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model Report {
+  id              String   @id @default(cuid())
+  userId          String
+  startDate       DateTime
+  endDate         DateTime
+  coreBeliefs     String?  // JSON 또는 텍스트
+  mainEmotions    String?  // JSON 또는 텍스트
+  emotionChanges  String?  // JSON 또는 텍스트
+  reportData      String?  // 전체 리포트 데이터 (JSON)
+  counselorComment String?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// AI 크루 팀 구축 플랫폼 모델
+model Crew {
+  id            String   @id @default(cuid())
+  name          String
+  role          String
+  instructions  String
+  avatarUrl     String?
+  userId        String   // 로컬 스토리지 기반이므로 임시 userId 사용
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages        Message[]
+  chatSessions    ChatSessionCrew[]
+  optimizations   Optimization[]
+
+  @@index([userId])
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  type      String   // 'direct' | 'group'
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages     Message[]
+  threads      Thread[]
+  crewMembers  ChatSessionCrew[]
+
+  @@index([userId])
+}
+
+model ChatSessionCrew {
+  id          String       @id @default(cuid())
+  sessionId   String
+  crewId      String
+  session     ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  crew        Crew         @relation(fields: [crewId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, crewId])
+  @@index([sessionId])
+  @@index([crewId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  sessionId String
+  crewId    String?  // null이면 사용자 메시지
+  content   String
+  role      String   // 'user' | 'assistant' | 'system'
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  crew    Crew?       @relation(fields: [crewId], references: [id], onDelete: SetNull)
+  threads Thread[]
+
+  @@index([sessionId])
+  @@index([crewId])
+  @@index([createdAt])
+}
+
+model Thread {
+  id              String   @id @default(cuid())
+  sessionId       String
+  parentMessageId String?
+  title           String?
+  createdAt       DateTime @default(now())
+
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  parentMessage Message?    @relation(fields: [parentMessageId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([parentMessageId])
+}
+
+model Optimization {
+  id                  String   @id @default(cuid())
+  crewId              String
+  previousInstructions String
+  newInstructions     String
+  reason              String?
+  createdAt           DateTime @default(now())
+
+  crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
+
+  @@index([crewId])
+}
