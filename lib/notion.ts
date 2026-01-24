@@ -28,14 +28,16 @@ export async function createNotionPage(
     throw new Error('노션 API 키가 설정되지 않았습니다.');
   }
 
+  if (!page.parentPageId) {
+    throw new Error('노션 페이지를 생성하려면 parentPageId가 필요합니다.');
+  }
+
   try {
     // 마크다운을 노션 블록으로 변환
     const blocks = markdownToNotionBlocks(page.content);
 
     const response = await client.pages.create({
-      parent: page.parentPageId
-        ? { page_id: page.parentPageId }
-        : { type: 'workspace', workspace: true },
+      parent: { page_id: page.parentPageId },
       properties: {
         title: {
           title: [
