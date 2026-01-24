@@ -133,24 +133,6 @@ export async function POST(request: NextRequest) {
             counselorComment: counselorComment?.comment || null,
           },
         });
-      update: {
-        coreBeliefs: JSON.stringify(hotThoughts),
-        mainEmotions: JSON.stringify(mainEmotions),
-        emotionChanges: JSON.stringify(emotionChanges),
-        reportData: JSON.stringify(reportData),
-        counselorComment: counselorComment?.comment || null,
-      },
-      create: {
-        userId: auth.userId,
-        startDate: start,
-        endDate: end,
-        coreBeliefs: JSON.stringify(hotThoughts),
-        mainEmotions: JSON.stringify(mainEmotions),
-        emotionChanges: JSON.stringify(emotionChanges),
-        reportData: JSON.stringify(reportData),
-        counselorComment: counselorComment?.comment || null,
-      },
-    });
 
     return NextResponse.json({ report, reportData });
   } catch (error) {
