@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 
@@ -14,7 +14,7 @@ interface ReportData {
   totalDays: number;
 }
 
-export default function ReportPage() {
+function ReportContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const reportId = searchParams.get('id');
@@ -201,5 +201,13 @@ export default function ReportPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><p>로딩 중...</p></div>}>
+      <ReportContent />
+    </Suspense>
   );
 }
