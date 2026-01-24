@@ -78,7 +78,7 @@ export default function OptimizeModal({
         {!optimizedCrew ? (
           <div className="space-y-4">
             <p className="text-gray-600">
-              Based on the conversation with <strong>{crew.name}</strong>, we'll optimize the crew's instructions to better match your preferences.
+              Based on the conversation with <strong>{crew.name}</strong>, we will optimize the crew&apos;s instructions to better match your preferences.
             </p>
             
             <div className="bg-gray-50 rounded-lg p-4">
