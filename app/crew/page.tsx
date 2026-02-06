@@ -7,6 +7,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import CrewCard from '@/components/crew/CrewCard';
 import CrewModal from '@/components/crew/CrewModal';
 import TemplateCard, { Template } from '@/components/crew/TemplateCard';
+import ApiKeyModal from '@/components/modals/ApiKeyModal';
 
 export default function CrewPage() {
   const router = useRouter();
@@ -16,6 +17,9 @@ export default function CrewPage() {
   const [editingCrew, setEditingCrew] = useState<Crew | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [userNickname, setUserNickname] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -23,9 +27,10 @@ export default function CrewPage() {
 
   const loadData = async () => {
     try {
-      const [crewsRes, templatesRes] = await Promise.all([
+      const [crewsRes, templatesRes, meRes] = await Promise.all([
         fetch('/api/crew'),
         fetch('/api/template'),
+        fetch('/api/auth/me'),
       ]);
 
       const crewsData = await crewsRes.json();
@@ -33,6 +38,16 @@ export default function CrewPage() {
 
       setCrews(crewsData.crews || []);
       setTemplates(templatesData.templates || []);
+
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        const hasKey = meData.user?.hasGeminiKey ?? false;
+        setHasGeminiKey(hasKey);
+        setUserNickname(meData.user?.nickname || null);
+        if (!hasKey) {
+          setShowApiKeyModal(true);
+        }
+      }
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -102,7 +117,7 @@ export default function CrewPage() {
   if (isLoading) {
     return (
       <div className="flex h-screen bg-cream">
-        <Sidebar crews={crews} />
+        <Sidebar crews={crews} userNickname={userNickname || undefined} hasGeminiKey={hasGeminiKey ?? undefined} />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-lime border-t-transparent rounded-full animate-spin"></div>
@@ -115,7 +130,7 @@ export default function CrewPage() {
 
   return (
     <div className="flex h-screen bg-cream">
-      <Sidebar crews={crews} />
+      <Sidebar crews={crews} userNickname={userNickname || undefined} hasGeminiKey={hasGeminiKey ?? undefined} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Hero Section */}
@@ -203,6 +218,15 @@ export default function CrewPage() {
         onSave={handleSaveCrew}
         crew={editingCrew}
         template={selectedTemplate}
+      />
+
+      <ApiKeyModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+        onSuccess={() => {
+          setShowApiKeyModal(false);
+          setHasGeminiKey(true);
+        }}
       />
     </div>
   );
