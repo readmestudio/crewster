@@ -1,18 +1,23 @@
 // 그룹 세션 조회
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-
-const DEFAULT_USER_ID = 'local-user';
+import {
+  requireAuthWithSubscription,
+  createUnauthorizedResponse,
+} from '@/lib/middleware';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { sessionId: string } }
 ) {
   try {
+    const auth = await requireAuthWithSubscription(request);
+    if (!auth) return createUnauthorizedResponse();
+
     const session = await prisma.chatSession.findFirst({
       where: {
         id: params.sessionId,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
         type: 'group',
       },
       include: {

@@ -1,11 +1,16 @@
 // 세션별 메시지 조회
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-
-const DEFAULT_USER_ID = 'local-user';
+import {
+  requireAuthWithSubscription,
+  createUnauthorizedResponse,
+} from '@/lib/middleware';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuthWithSubscription(request);
+    if (!auth) return createUnauthorizedResponse();
+
     const searchParams = request.nextUrl.searchParams;
     const crewId = searchParams.get('crewId');
     const sessionId = searchParams.get('sessionId');
@@ -23,7 +28,7 @@ export async function GET(request: NextRequest) {
       session = await prisma.chatSession.findFirst({
         where: {
           id: sessionId,
-          userId: DEFAULT_USER_ID,
+          userId: auth.userId,
         },
       });
     } else if (crewId) {
@@ -31,7 +36,7 @@ export async function GET(request: NextRequest) {
       const sessions = await prisma.chatSession.findMany({
         where: {
           type: 'direct',
-          userId: DEFAULT_USER_ID,
+          userId: auth.userId,
         },
         include: {
           messages: {

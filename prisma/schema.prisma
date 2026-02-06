@@ -11,107 +11,47 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  kakaoId   String   @unique
-  nickname  String?
-  email     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String?  @unique          // 이메일 로그인용
+  password     String?                   // bcrypt 해시
+  kakaoId      String?  @unique          // Optional로 변경 (카카오 로그인용)
+  nickname     String?
+  geminiApiKey String?                   // AES-256-GCM 암호화된 Gemini API Key
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  dailyCheckIns      DailyCheckIn[]
-  diaryEntries       DiaryEntry[]
-  internalizations   Internalization[]
-  userResponses      UserResponse[]
-  counselorComments  CounselorComment[]
-  reports            Report[]
+  subscription       Subscription?
+  crews              Crew[]
+  chatSessions       ChatSession[]
+  usageLogs          UsageLog[]
 }
 
-model DailyCheckIn {
-  id        String   @id @default(cuid())
-  userId    String
-  date      DateTime
-  emotion   String
-  intensity Int      // 0-100
-  memo      String?
-  createdAt DateTime @default(now())
+// 구독 모델
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  plan                 String    @default("free")  // "free" | "pro"
+  status               String    @default("active") // "active" | "canceled" | "past_due"
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodStart   DateTime  @default(now())
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, date])
-  @@index([userId, date])
 }
 
-model DiaryEntry {
-  id             String   @id @default(cuid())
-  userId         String
-  date           DateTime
-  category       String?
-  beforeThoughts String?
-  afterThoughts  String?
-  hotThought     String?
-  balancedThought String?
-  createdAt      DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, date])
-  @@index([userId, date])
-}
-
-model Internalization {
-  id               String   @id @default(cuid())
-  userId           String
-  date             DateTime
-  positiveStatement String
-  createdAt        DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, date])
-}
-
-model UserResponse {
+// 사용량 로그 모델
+model UsageLog {
   id        String   @id @default(cuid())
   userId    String
-  date      DateTime
-  question  String
-  answer    String
-  context   String?  // 추가 컨텍스트 정보
+  type      String   // "message_send" | "crew_create"
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, date])
-}
-
-model CounselorComment {
-  id          String   @id @default(cuid())
-  userId      String
-  date        DateTime
-  comment     String
-  counselorId String
-  createdAt   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, date])
-}
-
-model Report {
-  id              String   @id @default(cuid())
-  userId          String
-  startDate       DateTime
-  endDate         DateTime
-  coreBeliefs     String?  // JSON 또는 텍스트
-  mainEmotions    String?  // JSON 또는 텍스트
-  emotionChanges  String?  // JSON 또는 텍스트
-  reportData      String?  // 전체 리포트 데이터 (JSON)
-  counselorComment String?
-  createdAt       DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
+  @@index([userId, type, createdAt])
 }
 
 // AI 크루 팀 구축 플랫폼 모델
@@ -121,10 +61,11 @@ model Crew {
   role          String
   instructions  String
   avatarUrl     String?
-  userId        String   // 로컬 스토리지 기반이므로 임시 userId 사용
+  userId        String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages        Message[]
   chatSessions    ChatSessionCrew[]
   optimizations   Optimization[]
@@ -140,6 +81,7 @@ model ChatSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages     Message[]
   threads      Thread[]
   crewMembers  ChatSessionCrew[]
@@ -202,4 +144,22 @@ model Optimization {
   crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
 
   @@index([crewId])
+}
+
+// Crew Templates (Admin-managed)
+model CrewTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  role         String
+  instructions String
+  description  String
+  iconEmoji    String   @default("🤖")
+  category     String   @default("general")
+  isPublic     Boolean  @default(true)
+  usageCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([isPublic])
 }

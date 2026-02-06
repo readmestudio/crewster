@@ -34,35 +34,57 @@ export async function GET(request: NextRequest) {
     // 사용자 조회 또는 생성
     let user = await prisma.user.findUnique({
       where: { kakaoId },
+      include: { subscription: true },
     });
 
     if (!user) {
+      // 신규 사용자: Free Subscription 자동 생성
       user = await prisma.user.create({
         data: {
           kakaoId,
           nickname,
           email,
+          subscription: {
+            create: {
+              plan: 'free',
+              status: 'active',
+            },
+          },
         },
+        include: { subscription: true },
       });
     } else {
-      // 사용자 정보 업데이트
+      // 기존 사용자: 정보 업데이트
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
           nickname: nickname || user.nickname,
           email: email || user.email,
         },
+        include: { subscription: true },
       });
+
+      // 구독이 없는 기존 사용자에게 Free 구독 생성
+      if (!user.subscription) {
+        await prisma.subscription.create({
+          data: {
+            userId: user.id,
+            plan: 'free',
+            status: 'active',
+          },
+        });
+      }
     }
 
-    // JWT 토큰 생성
+    // JWT 토큰 생성 (authProvider 추가)
     const jwtToken = generateToken({
       userId: user.id,
-      kakaoId: user.kakaoId,
+      kakaoId: user.kakaoId || undefined,
+      authProvider: 'kakao',
     });
 
     // 쿠키에 토큰 저장
-    const response = NextResponse.redirect(new URL('/chat', request.url));
+    const response = NextResponse.redirect(new URL('/crew', request.url));
     response.cookies.set('token', jwtToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

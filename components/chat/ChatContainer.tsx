@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import MessageList from './MessageList';
 import ChatInput from './ChatInput';
-import { Message } from '@/types';
-
-import { Crew } from '@/types';
+import ApiKeyModal from '@/components/modals/ApiKeyModal';
+import { Message, Crew } from '@/types';
 
 interface ChatContainerProps {
   crewId: string;
@@ -18,6 +17,7 @@ interface ChatContainerProps {
 export default function ChatContainer({ crewId, crewName, crew, initialMessages = [], onOptimizeRequest }: ChatContainerProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,7 +63,16 @@ export default function ChatContainer({ crewId, crewName, crew, initialMessages 
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        if (errorData?.code === 'NO_API_KEY' || errorData?.code === 'INVALID_API_KEY') {
+          setShowApiKeyModal(true);
+          setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+          setIsLoading(false);
+          return;
+        }
+        throw new Error(errorData?.error || 'Failed to send message');
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -146,6 +155,11 @@ export default function ChatContainer({ crewId, crewName, crew, initialMessages 
         <div ref={messagesEndRef} />
       </div>
       <ChatInput onSend={handleSendMessage} disabled={isLoading} />
+      <ApiKeyModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+        onSuccess={() => setShowApiKeyModal(false)}
+      />
     </div>
   );
 }

@@ -1,13 +1,17 @@
 // 그룹 채팅 API
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getGroupChatResponse } from '@/lib/crew-openai';
-
-const DEFAULT_USER_ID = 'local-user';
+import { getGroupChatResponse } from '@/lib/crew-gemini';
+import { requireAuth, requireAuthWithApiKey } from '@/lib/middleware';
 
 // 그룹 세션 생성
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { crewIds, title } = body;
 
@@ -22,7 +26,7 @@ export async function POST(request: NextRequest) {
     const crews = await prisma.crew.findMany({
       where: {
         id: { in: crewIds },
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
       },
     });
 
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest) {
     const session = await prisma.chatSession.create({
       data: {
         type: 'group',
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
         title: title || `${crews.length}명의 크루 그룹`,
         crewMembers: {
           create: crewIds.map((crewId: string) => ({
@@ -67,6 +71,16 @@ export async function POST(request: NextRequest) {
 // 그룹 메시지 전송
 export async function PUT(request: NextRequest) {
   try {
+    // API Key 확인
+    const apiKeyResult = await requireAuthWithApiKey(request);
+    if (!apiKeyResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if ('error' in apiKeyResult) {
+      return apiKeyResult.error;
+    }
+    const { auth, apiKey } = apiKeyResult;
+
     const body = await request.json();
     const { sessionId, content, targetCrewId, mentionedCrewIds } = body;
 
@@ -81,7 +95,7 @@ export async function PUT(request: NextRequest) {
     const session = await prisma.chatSession.findFirst({
       where: {
         id: sessionId,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
         type: 'group',
       },
       include: {
@@ -124,12 +138,10 @@ export async function PUT(request: NextRequest) {
     // 멘션된 크루가 있으면 해당 크루만, 없으면 타겟 크루 또는 모든 크루
     let targetCrews;
     if (mentionedCrewIds && mentionedCrewIds.length > 0) {
-      // 멘션된 크루만 필터링
       targetCrews = session.crewMembers
         .filter((cm) => mentionedCrewIds.includes(cm.crewId))
         .map((cm) => cm.crew);
-      
-      // 멘션된 크루가 그룹에 없으면 에러
+
       if (targetCrews.length === 0) {
         return NextResponse.json(
           { error: '멘션된 크루를 그룹에서 찾을 수 없습니다.' },
@@ -147,12 +159,10 @@ export async function PUT(request: NextRequest) {
     // 각 멘션된 크루의 DM 세션 및 히스토리 조회
     const crewContextsWithDm = await Promise.all(
       targetCrews.map(async (crew) => {
-        // DM 세션 찾기 (해당 크루와의 1:1 대화)
-        // crewId가 있는 메시지가 있는 세션을 찾고, 그 세션의 모든 메시지를 가져옴
         const dmSession = await prisma.chatSession.findFirst({
           where: {
             type: 'direct',
-            userId: DEFAULT_USER_ID,
+            userId: auth.userId,
             messages: {
               some: {
                 crewId: crew.id,
@@ -164,16 +174,15 @@ export async function PUT(request: NextRequest) {
               orderBy: {
                 createdAt: 'asc',
               },
-              take: 40, // 최근 40개 메시지 (user + assistant 모두 포함)
+              take: 40,
             },
           },
         });
 
-        // DM 히스토리 (해당 크루와의 대화만 필터링)
         const dmHistory = dmSession?.messages
           ? dmSession.messages
               .filter((msg) => msg.crewId === crew.id || msg.role === 'user')
-              .slice(-20) // 최근 20개만
+              .slice(-20)
               .map((msg) => ({
                 role: msg.role as 'user' | 'assistant' | 'system',
                 content: msg.content,
@@ -190,13 +199,14 @@ export async function PUT(request: NextRequest) {
             role: msg.role as 'user' | 'assistant' | 'system',
             content: msg.content,
           })),
-          dmHistory, // DM 히스토리 추가
+          dmHistory,
         };
       })
     );
 
     // 멀티 에이전트 응답 생성
     const responses = await getGroupChatResponse(
+      apiKey,
       content,
       crewContextsWithDm,
       previousMessages.map((msg) => ({
@@ -206,7 +216,7 @@ export async function PUT(request: NextRequest) {
       }))
     );
 
-    // 각 크루의 응답 저장 (crew 정보 포함)
+    // 각 크루의 응답 저장
     const assistantMessages = await Promise.all(
       responses.map((response) =>
         prisma.message.create({

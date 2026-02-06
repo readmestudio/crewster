@@ -1,12 +1,47 @@
 // 채팅 메시지 생성 및 스트리밍 응답
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getCrewResponse } from '@/lib/crew-openai';
-
-const DEFAULT_USER_ID = 'local-user';
+import { getCrewResponse } from '@/lib/crew-gemini';
+import { withUsageLimit, requireAuthWithApiKey } from '@/lib/middleware';
+import { logUsage } from '@/lib/usage';
 
 export async function POST(request: NextRequest) {
   try {
+    // 인증 및 메시지 제한 확인
+    const result = await withUsageLimit(request, 'message_send');
+    if (!result) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (result.error) {
+      const errorData = await result.error.json();
+      return new Response(JSON.stringify(errorData), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { auth } = result;
+
+    // API Key 확인
+    const apiKeyResult = await requireAuthWithApiKey(request);
+    if (!apiKeyResult) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if ('error' in apiKeyResult) {
+      const errorData = await apiKeyResult.error.json();
+      return new Response(JSON.stringify(errorData), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const { apiKey } = apiKeyResult;
+
     const body = await request.json();
     const { crewId, content, sessionId } = body;
 
@@ -21,7 +56,7 @@ export async function POST(request: NextRequest) {
     const crew = await prisma.crew.findFirst({
       where: {
         id: crewId,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
       },
     });
 
@@ -38,7 +73,7 @@ export async function POST(request: NextRequest) {
       session = await prisma.chatSession.findFirst({
         where: {
           id: sessionId,
-          userId: DEFAULT_USER_ID,
+          userId: auth.userId,
         },
       });
     }
@@ -47,11 +82,14 @@ export async function POST(request: NextRequest) {
       session = await prisma.chatSession.create({
         data: {
           type: 'direct',
-          userId: DEFAULT_USER_ID,
+          userId: auth.userId,
           title: `${crew.name}와의 대화`,
         },
       });
     }
+
+    // 사용량 로깅
+    await logUsage(auth.userId, 'message_send');
 
     // 사용자 메시지 저장
     const userMessage = await prisma.message.create({
@@ -74,7 +112,7 @@ export async function POST(request: NextRequest) {
       take: 20,
     });
 
-    // GPT-4o 응답 생성 (스트리밍)
+    // Gemini 응답 생성 (스트리밍)
     const context = {
       crewId: crew.id,
       crewName: crew.name,
@@ -87,7 +125,7 @@ export async function POST(request: NextRequest) {
       })),
     };
 
-    const stream = await getCrewResponse(content, context);
+    const stream = await getCrewResponse(apiKey, content, context);
 
     // 스트리밍 응답 반환
     const encoder = new TextEncoder();

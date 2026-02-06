@@ -2,9 +2,12 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+export type AuthProvider = 'email' | 'kakao';
+
 export interface JWTPayload {
   userId: string;
-  kakaoId: string;
+  kakaoId?: string;  // Optional - only for Kakao login
+  authProvider: AuthProvider;
 }
 
 export function generateToken(payload: JWTPayload): string {

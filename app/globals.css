@@ -2,18 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Crewster Design System - "Orchestrated Simplicity" */
 :root {
-  --background: #fafafa;
-  --foreground: #1d1d1f;
-  --card: #ffffff;
-  --accent: #007aff;
-  --secondary: #8e8e93;
+  /* Primary Colors */
+  --background: #FAFAF8;
+  --background-white: #FFFFFF;
+  --text-primary: #1A1A1A;
+  --text-secondary: #6B6B6B;
+
+  /* Accent Colors */
+  --accent-lime: #E2F579;
+  --accent-lime-hover: #D4E86A;
+  --accent-mint: #A8E6CF;
+  --subtle-gray: #E5E5E5;
+  --hover-gray: #F5F5F5;
+
+  /* Legacy mapping */
+  --foreground: var(--text-primary);
+  --card: var(--background-white);
+  --accent: var(--accent-lime);
+  --secondary: var(--text-secondary);
+
+  /* Typography */
+  --font-display: 'Instrument Sans', 'Pretendard', -apple-system, sans-serif;
+  --font-body: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 100px;
 }
 
 body {
-  color: var(--foreground);
+  color: var(--text-primary);
   background: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

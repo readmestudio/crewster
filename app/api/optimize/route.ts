@@ -1,12 +1,21 @@
 // 프롬프트 최적화 API
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getCrewResponseNonStreaming } from '@/lib/crew-openai';
-
-const DEFAULT_USER_ID = 'local-user';
+import { getCrewResponseNonStreaming } from '@/lib/crew-gemini';
+import { requireAuthWithApiKey } from '@/lib/middleware';
 
 export async function POST(request: NextRequest) {
   try {
+    // API Key 확인
+    const apiKeyResult = await requireAuthWithApiKey(request);
+    if (!apiKeyResult) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if ('error' in apiKeyResult) {
+      return apiKeyResult.error;
+    }
+    const { auth, apiKey } = apiKeyResult;
+
     const body = await request.json();
     const { crewId, conversationContext, reason } = body;
 
@@ -21,7 +30,7 @@ export async function POST(request: NextRequest) {
     const crew = await prisma.crew.findFirst({
       where: {
         id: crewId,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
       },
     });
 
@@ -32,7 +41,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // GPT를 사용하여 지침 최적화
+    // Gemini를 사용하여 지침 최적화
     const optimizationPrompt = `다음은 현재 크루의 지침입니다:
 
 ${crew.instructions}
@@ -41,11 +50,11 @@ ${crew.instructions}
 
 ${conversationContext}
 
-이 대화 내용을 바탕으로 크루의 지침을 개선하고 최적화해주세요. 
+이 대화 내용을 바탕으로 크루의 지침을 개선하고 최적화해주세요.
 기존 지침의 핵심은 유지하면서, 대화에서 나타난 사용자의 선호도나 요구사항을 반영하여 지침을 업데이트하세요.
 개선된 지침만 반환해주세요.`;
 
-    const optimizedInstructions = await getCrewResponseNonStreaming(optimizationPrompt, {
+    const optimizedInstructions = await getCrewResponseNonStreaming(apiKey, optimizationPrompt, {
       crewId: crew.id,
       crewName: crew.name,
       role: '지침 최적화 전문가',

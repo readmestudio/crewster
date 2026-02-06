@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { generateAvatarUrl } from '@/lib/avatar';
-
-const DEFAULT_USER_ID = 'local-user';
+import {
+  requireAuthWithSubscription,
+  createUnauthorizedResponse,
+} from '@/lib/middleware';
 
 // GET: 특정 크루 조회
 export async function GET(
@@ -11,10 +13,13 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuthWithSubscription(request);
+    if (!auth) return createUnauthorizedResponse();
+
     const crew = await prisma.crew.findFirst({
       where: {
         id: params.id,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
       },
     });
 
@@ -41,13 +46,16 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuthWithSubscription(request);
+    if (!auth) return createUnauthorizedResponse();
+
     const body = await request.json();
     const { name, role, instructions } = body;
 
     const crew = await prisma.crew.findFirst({
       where: {
         id: params.id,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
       },
     });
 
@@ -90,10 +98,13 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuthWithSubscription(request);
+    if (!auth) return createUnauthorizedResponse();
+
     const crew = await prisma.crew.findFirst({
       where: {
         id: params.id,
-        userId: DEFAULT_USER_ID,
+        userId: auth.userId,
       },
     });
 
