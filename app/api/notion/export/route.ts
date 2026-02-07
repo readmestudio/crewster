@@ -1,9 +1,13 @@
 // 노션 내보내기 API
 import { NextRequest, NextResponse } from 'next/server';
 import { createNotionPage } from '@/lib/notion';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const body = await request.json();
     const { title, content, apiKey, parentPageId } = body;
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import UsageBadge from '@/components/usage/UsageBadge';
@@ -85,7 +86,9 @@ export default function Sidebar({ crews = [], usage, plan = 'free', userNickname
       {/* Logo Header */}
       <div className="p-5 border-b border-subtle-gray">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🎼</span>
+          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
+            <Image src="/logo.png" alt="Crewster" width={28} height={28} />
+          </div>
           <h1 className="text-xl font-semibold text-text-primary font-display tracking-tight">Crewster</h1>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { prisma } from './db';
+import { TTLCache } from './cache';
 
 export const PLAN_LIMITS = {
   free: {
@@ -32,9 +33,16 @@ export interface LimitCheckResult {
   error?: string;
 }
 
+const usageCountCache = new TTLCache<number>(10 * 60 * 1000);
+
 function getMonthStart(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function getUsageCacheKey(userId: string, action: UsageType): string {
+  const monthStart = getMonthStart();
+  return `${userId}:${action}:${monthStart.getTime()}`;
 }
 
 export async function getCurrentUsage(userId: string): Promise<UsageStats> {
@@ -81,15 +89,27 @@ export async function checkLimit(
   });
 
   const plan = (subscription?.plan as PlanType) || 'free';
+  return checkLimitWithPlan(userId, action, plan);
+}
+
+export async function checkLimitWithPlan(
+  userId: string,
+  action: UsageType,
+  plan: PlanType
+): Promise<LimitCheckResult> {
   const limits = PLAN_LIMITS[plan];
 
   if (action === 'crew_create') {
+    const limit = limits.maxCrews;
+    if (limit === Infinity) {
+      return { allowed: true, current: 0, limit: Infinity };
+    }
+
     const crewCount = await prisma.crew.count({
       where: { userId },
     });
 
-    const limit = limits.maxCrews;
-    if (limit !== Infinity && crewCount >= limit) {
+    if (crewCount >= limit) {
       return {
         allowed: false,
         current: crewCount,
@@ -102,17 +122,28 @@ export async function checkLimit(
   }
 
   if (action === 'message_send') {
-    const monthStart = getMonthStart();
-    const messageCount = await prisma.usageLog.count({
-      where: {
-        userId,
-        type: 'message_send',
-        createdAt: { gte: monthStart },
-      },
-    });
-
     const limit = limits.maxMessagesPerMonth;
-    if (limit !== Infinity && messageCount >= limit) {
+    if (limit === Infinity) {
+      return { allowed: true, current: 0, limit: Infinity };
+    }
+
+    // Check cache first
+    const cacheKey = getUsageCacheKey(userId, action);
+    let messageCount = usageCountCache.get(cacheKey);
+
+    if (messageCount === undefined) {
+      const monthStart = getMonthStart();
+      messageCount = await prisma.usageLog.count({
+        where: {
+          userId,
+          type: 'message_send',
+          createdAt: { gte: monthStart },
+        },
+      });
+      usageCountCache.set(cacheKey, messageCount);
+    }
+
+    if (messageCount >= limit) {
       return {
         allowed: false,
         current: messageCount,
@@ -134,4 +165,11 @@ export async function logUsage(userId: string, type: string): Promise<void> {
       type,
     },
   });
+
+  // Increment cached count if present
+  const cacheKey = getUsageCacheKey(userId, type as UsageType);
+  const cached = usageCountCache.get(cacheKey);
+  if (cached !== undefined) {
+    usageCountCache.set(cacheKey, cached + 1);
+  }
 }

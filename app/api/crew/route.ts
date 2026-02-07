@@ -8,10 +8,14 @@ import {
   createUnauthorizedResponse,
   logUsageAndRespond,
 } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 // GET: 모든 크루 조회
 export async function GET(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -37,6 +41,9 @@ export async function GET(request: NextRequest) {
 // POST: 새 크루 생성
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     // 인증 및 크루 생성 제한 확인
     const result = await withUsageLimit(request, 'crew_create');
     if (!result) return createUnauthorizedResponse();

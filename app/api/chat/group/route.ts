@@ -3,10 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getGroupChatResponse } from '@/lib/crew-gemini';
 import { requireAuth, requireAuthWithApiKey } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 // 그룹 세션 생성
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuth(request);
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -71,6 +75,9 @@ export async function POST(request: NextRequest) {
 // 그룹 메시지 전송
 export async function PUT(request: NextRequest) {
   try {
+    const limited = rateLimit(request, 'ai');
+    if (limited) return limited;
+
     // API Key 확인
     const apiKeyResult = await requireAuthWithApiKey(request);
     if (!apiKeyResult) {
@@ -156,55 +163,61 @@ export async function PUT(request: NextRequest) {
       targetCrews = session.crewMembers.map((cm) => cm.crew);
     }
 
-    // 각 멘션된 크루의 DM 세션 및 히스토리 조회
-    const crewContextsWithDm = await Promise.all(
-      targetCrews.map(async (crew) => {
-        const dmSession = await prisma.chatSession.findFirst({
-          where: {
-            type: 'direct',
-            userId: auth.userId,
-            messages: {
-              some: {
-                crewId: crew.id,
-              },
-            },
+    // 배치 DM 세션 조회 - 모든 타겟 크루의 DM 세션을 1회 쿼리로 가져옴
+    const crewIds = targetCrews.map((c) => c.id);
+    const dmSessions = await prisma.chatSession.findMany({
+      where: {
+        type: 'direct',
+        userId: auth.userId,
+        messages: {
+          some: {
+            crewId: { in: crewIds },
           },
-          include: {
-            messages: {
-              orderBy: {
-                createdAt: 'asc',
-              },
-              take: 40,
-            },
-          },
-        });
+        },
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 40,
+        },
+      },
+    });
 
-        const dmHistory = dmSession?.messages
-          ? dmSession.messages
-              .filter((msg) => msg.crewId === crew.id || msg.role === 'user')
-              .slice(-20)
-              .map((msg) => ({
-                role: msg.role as 'user' | 'assistant' | 'system',
-                content: msg.content,
-              }))
-          : [];
-
-        return {
-          crewId: crew.id,
-          crewName: crew.name,
-          role: crew.role,
-          instructions: crew.instructions,
-          sessionId: session.id,
-          previousMessages: previousMessages.map((msg) => ({
+    // crewId → dmHistory Map 구성
+    const dmHistoryMap = new Map<string, Array<{ role: 'user' | 'assistant' | 'system'; content: string }>>();
+    for (const dmSession of dmSessions) {
+      for (const crewId of crewIds) {
+        const relevantMessages = dmSession.messages.filter(
+          (msg) => msg.crewId === crewId || msg.role === 'user'
+        );
+        if (relevantMessages.length > 0) {
+          const existing = dmHistoryMap.get(crewId) || [];
+          const newHistory = relevantMessages.slice(-20).map((msg) => ({
             role: msg.role as 'user' | 'assistant' | 'system',
             content: msg.content,
-          })),
-          dmHistory,
-        };
-      })
-    );
+          }));
+          // Keep the longer history if multiple DM sessions exist
+          if (newHistory.length > existing.length) {
+            dmHistoryMap.set(crewId, newHistory);
+          }
+        }
+      }
+    }
 
-    // 멀티 에이전트 응답 생성
+    const crewContextsWithDm = targetCrews.map((crew) => ({
+      crewId: crew.id,
+      crewName: crew.name,
+      role: crew.role,
+      instructions: crew.instructions,
+      sessionId: session.id,
+      previousMessages: previousMessages.map((msg) => ({
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content,
+      })),
+      dmHistory: dmHistoryMap.get(crew.id) || [],
+    }));
+
+    // 멀티 에이전트 응답 생성 (내부적으로 병렬 처리)
     const responses = await getGroupChatResponse(
       apiKey,
       content,
@@ -216,8 +229,8 @@ export async function PUT(request: NextRequest) {
       }))
     );
 
-    // 각 크루의 응답 저장
-    const assistantMessages = await Promise.all(
+    // 각 크루의 응답 저장 - 트랜잭션으로 일괄 처리
+    const assistantMessages = await prisma.$transaction(
       responses.map((response) =>
         prisma.message.create({
           data: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuthWithSubscription, createUnauthorizedResponse } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -9,6 +10,9 @@ interface Params {
 // GET: Get a single template
 export async function GET(request: NextRequest, { params }: Params) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -38,6 +42,9 @@ export async function GET(request: NextRequest, { params }: Params) {
 // PATCH: Update a template (admin only)
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -70,6 +77,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 // DELETE: Delete a template (admin only)
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 

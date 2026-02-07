@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { generateToken } from '@/lib/jwt';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request, 'login');
+    if (limited) return limited;
+
     const body = await request.json();
     const { email, password } = body;
 
@@ -52,6 +56,8 @@ export async function POST(request: NextRequest) {
     const token = generateToken({
       userId: user.id,
       authProvider: 'email',
+      subscriptionPlan: (user.subscription?.plan as 'free' | 'pro') || 'free',
+      subscriptionStatus: user.subscription?.status || 'active',
     });
 
     // Set cookie and return response

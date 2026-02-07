@@ -179,7 +179,9 @@ export default function CrewPage() {
 
             {crews.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center shadow-card">
-                <div className="text-5xl mb-4">🎼</div>
+                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <img src="/logo.png" alt="Crewster" width={56} height={56} />
+                </div>
                 <h3 className="text-h3 text-text-primary mb-2">Start building your orchestra</h3>
                 <p className="text-body text-text-secondary mb-6">
                   Add your first AI crew member or use a template to get started

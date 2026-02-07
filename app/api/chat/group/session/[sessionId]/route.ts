@@ -1,6 +1,7 @@
 // 그룹 세션 조회
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { rateLimit } from '@/lib/rate-limit';
 
 const DEFAULT_USER_ID = 'local-user';
 
@@ -9,6 +10,8 @@ export async function GET(
   { params }: { params: { sessionId: string } }
 ) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
     const session = await prisma.chatSession.findFirst({
       where: {
         id: params.sessionId,

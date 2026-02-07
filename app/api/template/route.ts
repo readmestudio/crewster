@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuthWithSubscription, createUnauthorizedResponse } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 // GET: Get all public templates
 export async function GET(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -31,6 +35,9 @@ export async function GET(request: NextRequest) {
 // POST: Create a new template (admin only - for now just allow authenticated users)
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 

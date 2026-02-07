@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getKakaoToken, getKakaoUserInfo } from '@/lib/kakao';
 import { generateToken } from '@/lib/jwt';
 import { prisma } from '@/lib/db';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get('code');
   const error = searchParams.get('error');
@@ -81,6 +85,8 @@ export async function GET(request: NextRequest) {
       userId: user.id,
       kakaoId: user.kakaoId || undefined,
       authProvider: 'kakao',
+      subscriptionPlan: (user.subscription?.plan as 'free' | 'pro') || 'free',
+      subscriptionStatus: user.subscription?.status || 'active',
     });
 
     // 쿠키에 토큰 저장

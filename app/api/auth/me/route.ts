@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/jwt';
 import { prisma } from '@/lib/db';
 import { getCurrentUsage } from '@/lib/usage';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const token = request.cookies.get('token')?.value;
 
     if (!token) {

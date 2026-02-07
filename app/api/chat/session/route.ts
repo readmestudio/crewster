@@ -5,9 +5,13 @@ import {
   requireAuthWithSubscription,
   createUnauthorizedResponse,
 } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 

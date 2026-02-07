@@ -1,9 +1,13 @@
 // 슬랙 전송 API
 import { NextRequest, NextResponse } from 'next/server';
 import { sendSlackMessage, markdownToSlackBlocks } from '@/lib/slack';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const body = await request.json();
     const { channel, text, token, threadTs } = body;
 

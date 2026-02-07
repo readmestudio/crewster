@@ -60,8 +60,10 @@ function LoginContent() {
     <div className="flex min-h-screen items-center justify-center bg-cream">
       <div className="w-full max-w-md space-y-6 rounded-2xl bg-white p-8 shadow-card">
         <div className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-3xl">🎼</span>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
+              <img src="/logo.png" alt="Crewster" width={36} height={36} />
+            </div>
             <h2 className="text-3xl font-bold text-text-primary font-display tracking-tight">
               Crewster
             </h2>

@@ -6,6 +6,7 @@ import {
   requireAuthWithSubscription,
   createUnauthorizedResponse,
 } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 // GET: 특정 크루 조회
 export async function GET(
@@ -13,6 +14,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -46,6 +50,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -98,6 +105,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 

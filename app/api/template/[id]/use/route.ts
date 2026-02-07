@@ -5,6 +5,7 @@ import {
   withUsageLimit,
   createUnauthorizedResponse,
 } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -13,6 +14,9 @@ interface Params {
 // POST: Create a crew from a template
 export async function POST(request: NextRequest, { params }: Params) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     // Check auth and crew creation limit
     const result = await withUsageLimit(request, 'crew_create');
     if (!result) return createUnauthorizedResponse();

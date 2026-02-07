@@ -23,6 +23,14 @@ ${context.instructions}
 항상 한국어로 응답하세요.`;
 }
 
+const MAX_CONTEXT_TOKENS = 2000;
+
+function estimateTokens(text: string): number {
+  // Korean text: ~1 token per 3 characters; English: ~1 token per 4 characters
+  // Use conservative estimate of 1 token per 3 chars
+  return Math.ceil(text.length / 3);
+}
+
 function buildContents(
   previousMessages: Array<{ role: string; content: string }> | undefined,
   userMessage: string
@@ -30,8 +38,24 @@ function buildContents(
   const contents: Content[] = [];
 
   if (previousMessages) {
-    for (const msg of previousMessages.slice(-20)) {
-      if (msg.role === 'system') continue;
+    // Token-based context window: include messages from most recent, up to token limit
+    const userTokens = estimateTokens(userMessage);
+    let remainingTokens = MAX_CONTEXT_TOKENS - userTokens;
+
+    const filtered = previousMessages.filter((msg) => msg.role !== 'system');
+    // Iterate from most recent to oldest
+    const selected: Array<{ role: string; content: string }> = [];
+    for (let i = filtered.length - 1; i >= 0 && remainingTokens > 0; i--) {
+      const tokens = estimateTokens(filtered[i].content);
+      if (tokens <= remainingTokens) {
+        selected.unshift(filtered[i]);
+        remainingTokens -= tokens;
+      } else {
+        break;
+      }
+    }
+
+    for (const msg of selected) {
       contents.push({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }],
@@ -149,26 +173,31 @@ export async function getGroupChatResponse(
   contexts: CrewChatContext[],
   previousMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string; crewId?: string }>
 ): Promise<Array<{ crewId: string; crewName: string; response: string }>> {
-  const responses: Array<{ crewId: string; crewName: string; response: string }> = [];
+  // 병렬 처리: 모든 크루에 대해 동시에 Gemini API 호출
+  const responses = await Promise.all(
+    contexts.map(async (context) => {
+      const genAI = new GoogleGenerativeAI(apiKey);
 
-  for (const context of contexts) {
-    const genAI = new GoogleGenerativeAI(apiKey);
-
-    let systemPrompt = `당신은 ${context.crewName}입니다. 역할: ${context.role}
+      let systemPrompt = `당신은 ${context.crewName}입니다. 역할: ${context.role}
 
 ${context.instructions}
 
 현재 그룹 채팅에서 다른 크루들과 협업하고 있습니다. 사용자의 요청에 대해 전문적인 답변을 제공하세요.
 마스터(사용자)에게 다음 액션을 요구할 수 있는 질문이나 제안을 포함해주세요.`;
 
-    if (context.dmHistory && context.dmHistory.length > 0) {
-      systemPrompt += `\n\n중요: 아래는 마스터와의 이전 1:1 대화(DM) 히스토리입니다. 이 대화 내용을 참고하여 그룹 챗에서 일관성 있게 답변하세요.\n`;
-      systemPrompt += `[이전 DM 대화 히스토리]\n${context.dmHistory.map((msg) =>
-        `${msg.role === 'user' ? '[마스터]' : '[나]'}: ${msg.content}`
-      ).join('\n')}\n[DM 히스토리 끝]`;
-    }
+      if (context.dmHistory && context.dmHistory.length > 0) {
+        const dmHistoryText = context.dmHistory
+          .slice(-5)
+          .map((msg) => {
+            const truncated = msg.content.length > 200 ? msg.content.slice(0, 200) + '...' : msg.content;
+            return `${msg.role === 'user' ? '[마스터]' : '[나]'}: ${truncated}`;
+          })
+          .join('\n');
+        systemPrompt += `\n\n중요: 아래는 마스터와의 이전 1:1 대화(DM) 히스토리입니다. 이 대화 내용을 참고하여 그룹 챗에서 일관성 있게 답변하세요.\n`;
+        systemPrompt += `[이전 DM 대화 히스토리]\n${dmHistoryText}\n[DM 히스토리 끝]`;
+      }
 
-    systemPrompt += `\n\n대화 스타일:
+      systemPrompt += `\n\n대화 스타일:
 - 전문적이면서도 친근한 톤
 - 명확하고 실용적인 답변
 - 다른 크루들의 의견을 고려하여 답변
@@ -177,68 +206,69 @@ ${context.instructions}
 
 항상 한국어로 응답하세요.`;
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: systemPrompt,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1000,
-      },
-    });
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.0-flash',
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+        },
+      });
 
-    // Build group chat contents
-    const contents: Content[] = [];
-    if (previousMessages && previousMessages.length > 0) {
-      const recentMessages = previousMessages.slice(-10);
-      for (const msg of recentMessages) {
-        if (msg.role === 'user') {
-          contents.push({
-            role: 'user',
-            parts: [{ text: `[마스터]: ${msg.content}` }],
-          });
-        } else if (msg.role === 'assistant') {
-          contents.push({
-            role: 'model',
-            parts: [{
-              text: msg.crewId === context.crewId
-                ? `[나]: ${msg.content}`
-                : `[다른 크루]: ${msg.content}`,
-            }],
-          });
+      // Build group chat contents
+      const contents: Content[] = [];
+      if (previousMessages && previousMessages.length > 0) {
+        const recentMessages = previousMessages.slice(-10);
+        for (const msg of recentMessages) {
+          if (msg.role === 'user') {
+            contents.push({
+              role: 'user',
+              parts: [{ text: `[마스터]: ${msg.content}` }],
+            });
+          } else if (msg.role === 'assistant') {
+            contents.push({
+              role: 'model',
+              parts: [{
+                text: msg.crewId === context.crewId
+                  ? `[나]: ${msg.content}`
+                  : `[다른 크루]: ${msg.content}`,
+              }],
+            });
+          }
         }
       }
-    }
-    contents.push({ role: 'user', parts: [{ text: `[마스터]: ${userMessage}` }] });
+      contents.push({ role: 'user', parts: [{ text: `[마스터]: ${userMessage}` }] });
 
-    // Merge consecutive same-role messages
-    const merged: Content[] = [];
-    for (const content of contents) {
-      if (merged.length > 0 && merged[merged.length - 1].role === content.role) {
-        merged[merged.length - 1].parts.push(...content.parts);
-      } else {
-        merged.push({ ...content });
+      // Merge consecutive same-role messages
+      const merged: Content[] = [];
+      for (const c of contents) {
+        if (merged.length > 0 && merged[merged.length - 1].role === c.role) {
+          merged[merged.length - 1].parts.push(...c.parts);
+        } else {
+          merged.push({ ...c });
+        }
       }
-    }
-    if (merged.length > 0 && merged[0].role === 'model') {
-      merged.shift();
-    }
+      if (merged.length > 0 && merged[0].role === 'model') {
+        merged.shift();
+      }
 
-    try {
-      const result = await model.generateContent({ contents: merged });
-      responses.push({
-        crewId: context.crewId,
-        crewName: context.crewName,
-        response: result.response.text() || '',
-      });
-    } catch (error: any) {
-      console.error(`Error getting response from ${context.crewName}:`, error);
-      responses.push({
-        crewId: context.crewId,
-        crewName: context.crewName,
-        response: `응답 생성 중 오류가 발생했습니다: ${error?.message || '알 수 없는 오류'}`,
-      });
-    }
-  }
+      try {
+        const result = await model.generateContent({ contents: merged });
+        return {
+          crewId: context.crewId,
+          crewName: context.crewName,
+          response: result.response.text() || '',
+        };
+      } catch (error: any) {
+        console.error(`Error getting response from ${context.crewName}:`, error);
+        return {
+          crewId: context.crewId,
+          crewName: context.crewName,
+          response: `응답 생성 중 오류가 발생했습니다: ${error?.message || '알 수 없는 오류'}`,
+        };
+      }
+    })
+  );
 
   return responses;
 }

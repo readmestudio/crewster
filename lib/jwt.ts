@@ -8,6 +8,8 @@ export interface JWTPayload {
   userId: string;
   kakaoId?: string;  // Optional - only for Kakao login
   authProvider: AuthProvider;
+  subscriptionPlan?: 'free' | 'pro';
+  subscriptionStatus?: string;
 }
 
 export function generateToken(payload: JWTPayload): string {

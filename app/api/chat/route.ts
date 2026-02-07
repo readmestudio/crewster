@@ -2,45 +2,33 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCrewResponse } from '@/lib/crew-gemini';
-import { withUsageLimit, requireAuthWithApiKey } from '@/lib/middleware';
+import { requireAuthWithApiKeyAndUsageLimit } from '@/lib/middleware';
 import { logUsage } from '@/lib/usage';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    // 인증 및 메시지 제한 확인
-    const result = await withUsageLimit(request, 'message_send');
+    const limited = rateLimit(request, 'ai');
+    if (limited) return limited;
+
+    // 인증 + 메시지 제한 + API 키 통합 확인
+    const result = await requireAuthWithApiKeyAndUsageLimit(request, 'message_send');
     if (!result) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
-    if (result.error) {
+    if ('error' in result) {
       const errorData = await result.error.json();
+      const status = errorData.code === 'LIMIT_EXCEEDED' ? 403 : 400;
       return new Response(JSON.stringify(errorData), {
-        status: 403,
+        status,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const { auth } = result;
-
-    // API Key 확인
-    const apiKeyResult = await requireAuthWithApiKey(request);
-    if (!apiKeyResult) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-    if ('error' in apiKeyResult) {
-      const errorData = await apiKeyResult.error.json();
-      return new Response(JSON.stringify(errorData), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    const { apiKey } = apiKeyResult;
+    const { auth, apiKey } = result;
 
     const body = await request.json();
     const { crewId, content, sessionId } = body;

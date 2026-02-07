@@ -3,9 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCrewResponseNonStreaming } from '@/lib/crew-gemini';
 import { requireAuthWithApiKey } from '@/lib/middleware';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request, 'ai');
+    if (limited) return limited;
+
     // API Key 확인
     const apiKeyResult = await requireAuthWithApiKey(request);
     if (!apiKeyResult) {

@@ -3,16 +3,21 @@ import { prisma } from '@/lib/db';
 import {
   requireAuthWithSubscription,
   createUnauthorizedResponse,
+  invalidateSubscriptionCache,
 } from '@/lib/middleware';
 import {
   createCheckoutSession,
   cancelSubscription,
   createPortalSession,
 } from '@/lib/stripe';
+import { rateLimit } from '@/lib/rate-limit';
 
 // GET: 현재 구독 상태 조회
 export async function GET(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -51,6 +56,9 @@ export async function GET(request: NextRequest) {
 // POST: Pro 업그레이드 (Stripe Checkout 생성)
 export async function POST(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -101,6 +109,9 @@ export async function POST(request: NextRequest) {
 // DELETE: 구독 취소
 export async function DELETE(request: NextRequest) {
   try {
+    const limited = rateLimit(request);
+    if (limited) return limited;
+
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
@@ -142,6 +153,8 @@ export async function DELETE(request: NextRequest) {
       where: { userId: auth.userId },
       data: { status: 'canceled' },
     });
+
+    invalidateSubscriptionCache(auth.userId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
