@@ -36,6 +36,8 @@ export default function CrewPage() {
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [userNickname, setUserNickname] = useState<string | null>(null);
+  const [hireSuccess, setHireSuccess] = useState<{ name: string } | null>(null);
+  const [recentlyHiredIds, setRecentlyHiredIds] = useState<Set<string>>(new Set());
 
   // 카테고리별 그룹핑
   const groupedHireTemplates = useMemo(() => {
@@ -154,8 +156,19 @@ export default function CrewPage() {
       throw new Error('Hire failed');
     }
 
+    const data = await response.json();
+
+    // 최근 채용된 크루 ID 추적
+    if (data.crew?.id) {
+      setRecentlyHiredIds((prev) => new Set(prev).add(data.crew.id));
+    }
+
+    // 성공 토스트 표시 (3초 후 자동 해제)
+    setHireSuccess({ name: template.name });
+    setTimeout(() => setHireSuccess(null), 3000);
+
     await loadData();
-    setActiveTab('my-crew');
+    // 탭 전환 제거 — Hire Me! 탭에 머물러서 추가 채용 유도
   };
 
   if (isLoading) {
@@ -180,8 +193,7 @@ export default function CrewPage() {
         {/* Hero Section */}
         <div className="bg-cream px-10 py-12 border-b border-subtle-gray">
           <h1 className="text-hero font-display text-text-primary mb-3">
-            Assemble. Orchestrate.<br />
-            <span className="text-text-secondary">Achieve.</span>
+            Assemble. Orchestrate. <span className="text-text-secondary">Growth.</span>
           </h1>
           <p className="text-body text-text-secondary max-w-xl">
             Build your AI ensemble and conduct them like a maestro
@@ -262,6 +274,7 @@ export default function CrewPage() {
                       onClick={() => handleCrewClick(crew)}
                       onDelete={handleDeleteCrew}
                       onEdit={() => handleEditCrew(crew)}
+                      isNew={recentlyHiredIds.has(crew.id)}
                     />
                   ))}
                 </div>
@@ -277,6 +290,16 @@ export default function CrewPage() {
                   각 분야 전문가 AI 크루를 영입하세요. 클릭 한 번으로 바로 팀에 합류합니다.
                 </p>
               </div>
+
+              {/* 채용 성공 토스트 */}
+              {hireSuccess && (
+                <div className="mb-6 px-5 py-4 bg-white border border-lime rounded-2xl shadow-card flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <span className="text-lg">✅</span>
+                  <p className="text-body text-text-primary">
+                    <strong>{hireSuccess.name}</strong> 채용이 완료되었습니다! 추가 팀원을 채용해보세요.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-10">
                 {HIRE_CATEGORY_ORDER.map(({ key, label }) => {
