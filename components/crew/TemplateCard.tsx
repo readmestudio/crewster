@@ -7,6 +7,7 @@ export interface Template {
   description: string;
   iconEmoji: string;
   instructions: string;
+  category?: string;
 }
 
 interface TemplateCardProps {

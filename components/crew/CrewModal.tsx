@@ -2,15 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Crew } from '@/types';
-
-interface Template {
-  id: string;
-  name: string;
-  role: string;
-  description: string;
-  iconEmoji: string;
-  instructions: string;
-}
+import { Template } from '@/components/crew/TemplateCard';
 
 interface CrewModalProps {
   isOpen: boolean;
@@ -18,13 +10,15 @@ interface CrewModalProps {
   onSave: (data: { name: string; role: string; instructions: string }) => Promise<void>;
   crew?: Crew | null;
   template?: Template | null;
+  hireTemplates?: Template[];
 }
 
-export default function CrewModal({ isOpen, onClose, onSave, crew, template }: CrewModalProps) {
+export default function CrewModal({ isOpen, onClose, onSave, crew, template, hireTemplates }: CrewModalProps) {
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
   const [instructions, setInstructions] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecommendOpen, setIsRecommendOpen] = useState(false);
 
   useEffect(() => {
     if (crew) {
@@ -40,7 +34,15 @@ export default function CrewModal({ isOpen, onClose, onSave, crew, template }: C
       setRole('');
       setInstructions('');
     }
+    setIsRecommendOpen(false);
   }, [crew, template, isOpen]);
+
+  const handleSelectHireTemplate = (t: Template) => {
+    setName(t.name);
+    setRole(t.role);
+    setInstructions(t.instructions);
+    setIsRecommendOpen(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +71,7 @@ export default function CrewModal({ isOpen, onClose, onSave, crew, template }: C
 
   const isEditing = !!crew;
   const isFromTemplate = !!template && !crew;
+  const showRecommend = !isEditing && !isFromTemplate && hireTemplates && hireTemplates.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
@@ -94,6 +97,46 @@ export default function CrewModal({ isOpen, onClose, onSave, crew, template }: C
             </svg>
           </button>
         </div>
+
+        {/* 직원 추천 받기 (collapsible) */}
+        {showRecommend && (
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => setIsRecommendOpen(!isRecommendOpen)}
+              className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <svg
+                className={`w-4 h-4 transition-transform ${isRecommendOpen ? 'rotate-90' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              직원 추천 받기
+            </button>
+
+            {isRecommendOpen && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {hireTemplates!.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => handleSelectHireTemplate(t)}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-subtle-gray hover:border-lime hover:bg-lime/10 transition-all text-left"
+                  >
+                    <span className="text-xl flex-shrink-0">{t.iconEmoji}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">{t.name}</p>
+                      <p className="text-xs text-text-secondary truncate">{t.role}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

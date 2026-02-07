@@ -12,9 +12,13 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuthWithSubscription(request);
     if (!auth) return createUnauthorizedResponse();
 
+    const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
+
     const templates = await prisma.crewTemplate.findMany({
       where: {
         isPublic: true,
+        ...(category && { category }),
       },
       orderBy: [
         { usageCount: 'desc' },
