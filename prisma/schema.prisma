@@ -61,6 +61,7 @@ model Crew {
   name          String
   role          String
   instructions  String
+  description   String?
   avatarUrl     String?
   userId        String
   createdAt     DateTime @default(now())

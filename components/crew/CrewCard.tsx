@@ -7,9 +7,10 @@ interface CrewCardProps {
   onClick: () => void;
   onDelete: (id: string) => void;
   onEdit: () => void;
+  isNew?: boolean;
 }
 
-export default function CrewCard({ crew, onClick, onDelete, onEdit }: CrewCardProps) {
+export default function CrewCard({ crew, onClick, onDelete, onEdit, isNew }: CrewCardProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm(`Are you sure you want to delete ${crew.name}?`)) {
@@ -72,14 +73,22 @@ export default function CrewCard({ crew, onClick, onDelete, onEdit }: CrewCardPr
 
       {/* Description */}
       <p className="text-caption text-text-secondary line-clamp-2 flex-1">
-        {getTaskSummary(crew.instructions)}
+        {crew.description || getTaskSummary(crew.instructions)}
       </p>
 
-      {/* Chat indicator */}
-      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-subtle-gray">
-        <div className="w-2 h-2 rounded-full bg-mint"></div>
-        <span className="text-caption text-text-secondary">Click to chat</span>
-      </div>
+      {/* New crew hint or Chat indicator */}
+      {isNew ? (
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-subtle-gray">
+          <span className="text-caption text-lime-hover font-medium">
+            ✏️ 수정 버튼을 눌러 지침을 업데이트하세요
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-subtle-gray">
+          <div className="w-2 h-2 rounded-full bg-mint"></div>
+          <span className="text-caption text-text-secondary">Click to chat</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -47,6 +47,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         name: body.name || template.name,
         role: body.role || template.role,
         instructions: body.instructions || template.instructions,
+        description: template.description,
         avatarUrl,
         userId: auth.userId,
       },

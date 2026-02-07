@@ -57,6 +57,7 @@ export interface Crew {
   name: string;
   role: string;
   instructions: string;
+  description: string | null;
   avatarUrl: string | null;
   userId: string;
   createdAt: Date;

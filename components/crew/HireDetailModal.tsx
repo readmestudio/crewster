@@ -12,6 +12,7 @@ interface HireDetailModalProps {
 
 interface ParsedInstructions {
   intro: string;
+  coreTask: string;
   specialties: string[];
   communicationStyle: string;
   priorities: string;
@@ -21,17 +22,24 @@ function parseInstructions(instructions: string): ParsedInstructions {
   const lines = instructions.split('\n');
   const result: ParsedInstructions = {
     intro: '',
+    coreTask: '',
     specialties: [],
     communicationStyle: '',
     priorities: '',
   };
 
-  let currentSection: 'intro' | 'specialties' | 'communication' | 'priorities' = 'intro';
+  let currentSection: 'intro' | 'coreTask' | 'specialties' | 'communication' | 'priorities' = 'intro';
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
+    if (trimmed.startsWith('핵심 업무:')) {
+      currentSection = 'coreTask';
+      const after = trimmed.replace('핵심 업무:', '').trim();
+      if (after) result.coreTask = after;
+      continue;
+    }
     if (trimmed.startsWith('전문 분야:')) {
       currentSection = 'specialties';
       continue;
@@ -55,6 +63,13 @@ function parseInstructions(instructions: string): ParsedInstructions {
           result.intro += ' ' + trimmed;
         } else {
           result.intro = trimmed;
+        }
+        break;
+      case 'coreTask':
+        if (result.coreTask) {
+          result.coreTask += ' ' + trimmed;
+        } else {
+          result.coreTask = trimmed;
         }
         break;
       case 'specialties':
@@ -125,6 +140,19 @@ export default function HireDetailModal({ template, isOpen, onClose, onHire }: H
 
         {/* Content */}
         <div className="p-6 space-y-6">
+          {/* 핵심 업무 */}
+          {parsed.coreTask && (
+            <div>
+              <h3 className="text-h3 text-text-primary mb-3 flex items-center gap-2">
+                <span className="text-lg">🔥</span>
+                핵심 업무
+              </h3>
+              <p className="text-caption text-text-secondary bg-lime/10 border border-lime/30 rounded-xl p-4 leading-relaxed">
+                {parsed.coreTask}
+              </p>
+            </div>
+          )}
+
           {/* 전문 분야 */}
           {parsed.specialties.length > 0 && (
             <div>
