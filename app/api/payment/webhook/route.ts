@@ -1,29 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-// Stripe Webhook 이벤트 처리
-// TODO: Stripe SDK 연동 후 실제 이벤트 처리 구현
+// 결제 Webhook 이벤트 처리
+// TODO: NICE Pay 연동 후 실제 시그니처 검증 구현
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
-    const signature = request.headers.get('stripe-signature');
+    const signature = request.headers.get('x-webhook-signature');
 
     if (!signature) {
       return NextResponse.json(
-        { error: 'Missing stripe-signature header' },
+        { error: 'Missing webhook signature header' },
         { status: 400 }
       );
     }
 
-    // TODO: Stripe 웹훅 시그니처 검증
-    // const event = stripe.webhooks.constructEvent(
-    //   body,
-    //   signature,
-    //   process.env.STRIPE_WEBHOOK_SECRET!
-    // );
+    // TODO: NICE Pay 웹훅 시그니처 검증
+    // const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    // verifySignature(body, signature, secret);
 
-    // 임시로 body를 파싱
     let event;
     try {
       event = JSON.parse(body);
@@ -36,8 +32,8 @@ export async function POST(request: NextRequest) {
 
     // 이벤트 타입에 따른 처리
     switch (event.type) {
-      case 'checkout.session.completed': {
-        // 결제 완료 - Pro 업그레이드
+      case 'payment.completed': {
+        // 결제 완료 — Pro 업그레이드
         const session = event.data.object;
         const userId = session.metadata?.userId;
 
@@ -47,17 +43,16 @@ export async function POST(request: NextRequest) {
             update: {
               plan: 'pro',
               status: 'active',
-              stripeCustomerId: session.customer,
-              stripeSubscriptionId: session.subscription,
+              paymentCustomerId: session.customer,
+              paymentSubscriptionId: session.subscription,
               currentPeriodStart: new Date(),
-              // currentPeriodEnd는 subscription.created 이벤트에서 설정
             },
             create: {
               userId,
               plan: 'pro',
               status: 'active',
-              stripeCustomerId: session.customer,
-              stripeSubscriptionId: session.subscription,
+              paymentCustomerId: session.customer,
+              paymentSubscriptionId: session.subscription,
             },
           });
           console.log('Pro upgrade completed for user:', userId);
@@ -65,13 +60,13 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      case 'customer.subscription.updated': {
+      case 'subscription.updated': {
         // 구독 업데이트 (갱신, 플랜 변경 등)
         const subscription = event.data.object;
         const customerId = subscription.customer;
 
         const existingSub = await prisma.subscription.findFirst({
-          where: { stripeCustomerId: customerId },
+          where: { paymentCustomerId: customerId },
         });
 
         if (existingSub) {
@@ -87,13 +82,13 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      case 'customer.subscription.deleted': {
+      case 'subscription.canceled': {
         // 구독 취소/만료
         const subscription = event.data.object;
         const customerId = subscription.customer;
 
         const existingSub = await prisma.subscription.findFirst({
-          where: { stripeCustomerId: customerId },
+          where: { paymentCustomerId: customerId },
         });
 
         if (existingSub) {
@@ -102,7 +97,7 @@ export async function POST(request: NextRequest) {
             data: {
               plan: 'free',
               status: 'canceled',
-              stripeSubscriptionId: null,
+              paymentSubscriptionId: null,
             },
           });
           console.log('Subscription canceled for customer:', customerId);
@@ -110,13 +105,13 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      case 'invoice.payment_failed': {
+      case 'payment.failed': {
         // 결제 실패
         const invoice = event.data.object;
         const customerId = invoice.customer;
 
         const existingSub = await prisma.subscription.findFirst({
-          where: { stripeCustomerId: customerId },
+          where: { paymentCustomerId: customerId },
         });
 
         if (existingSub) {

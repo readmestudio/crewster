@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
+import UpgradeModal from '@/components/modals/UpgradeModal';
 import { Crew } from '@/types';
+import { PLAN_CONFIG } from '@/lib/payment';
 
 export default function SettingsPage() {
   const [crews, setCrews] = useState<Crew[]>([]);
@@ -16,6 +18,9 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string | null>(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<'free' | 'pro'>('free');
+  const [usage, setUsage] = useState<{ crews: { used: number; limit: number }; messages: { used: number; limit: number } } | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -24,10 +29,11 @@ export default function SettingsPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [crewsRes, keyRes, meRes] = await Promise.all([
+      const [crewsRes, keyRes, meRes, subRes] = await Promise.all([
         fetch('/api/crew'),
         fetch('/api/settings/api-key'),
         fetch('/api/auth/me'),
+        fetch('/api/subscription'),
       ]);
 
       const crewsData = await crewsRes.json();
@@ -40,6 +46,19 @@ export default function SettingsPage() {
       if (meRes.ok) {
         const meData = await meRes.json();
         setUserNickname(meData.user?.nickname);
+        if (meData.usage) {
+          setUsage(meData.usage);
+        }
+        if (meData.subscription) {
+          setSubscriptionPlan(meData.subscription.plan || 'free');
+        }
+      }
+
+      if (subRes.ok) {
+        const subData = await subRes.json();
+        if (subData.subscription) {
+          setSubscriptionPlan(subData.subscription.plan || 'free');
+        }
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -271,9 +290,105 @@ export default function SettingsPage() {
                 </div>
               </div>
             </section>
+
+            {/* Subscription Section */}
+            <section className="bg-white rounded-2xl p-6 shadow-card mt-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-h3 text-text-primary flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    Subscription
+                  </h2>
+                  <p className="text-sm text-text-secondary mt-1">
+                    현재 구독 플랜과 사용량을 확인합니다.
+                  </p>
+                </div>
+                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                  subscriptionPlan === 'pro'
+                    ? 'bg-lime/20 text-text-primary'
+                    : 'bg-hover-gray text-text-secondary'
+                }`}>
+                  {subscriptionPlan === 'pro' ? 'Pro' : 'Free'}
+                </div>
+              </div>
+
+              {/* Usage Stats */}
+              {subscriptionPlan === 'free' && (
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-text-secondary">크루</span>
+                      <span className="text-sm text-text-primary font-medium">
+                        {crews.length} / 3
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-hover-gray rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-lime rounded-full transition-all"
+                        style={{ width: `${Math.min((crews.length / 3) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-text-secondary">메시지 (이번 달)</span>
+                      <span className="text-sm text-text-primary font-medium">
+                        {usage?.messages.used ?? 0} / 100
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-hover-gray rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-lime rounded-full transition-all"
+                        style={{ width: `${Math.min(((usage?.messages.used ?? 0) / 100) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {subscriptionPlan === 'pro' ? (
+                <div className="rounded-xl bg-lime/10 p-4">
+                  <p className="text-sm text-text-primary font-medium">Pro 플랜 이용 중</p>
+                  <p className="text-sm text-text-secondary mt-1">
+                    무제한 크루 생성 및 메시지를 이용하실 수 있습니다.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-lime/10 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-text-primary font-medium">
+                        Pro 플랜 (${PLAN_CONFIG.pro.price}/월)
+                      </p>
+                      <p className="text-sm text-text-secondary mt-0.5">
+                        무제한 크루 생성 및 메시지
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="px-4 py-2 bg-lime hover:bg-lime-hover text-text-primary text-sm font-medium rounded-full transition-all"
+                    >
+                      업그레이드
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
         </div>
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        limitType="crew"
+        currentUsage={crews.length}
+        limit={3}
+      />
     </div>
   );
 }

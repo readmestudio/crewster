@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { PLAN_CONFIG } from '@/lib/payment';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ export default function UpgradeModal({
       }
 
       if (data.url) {
-        // Stripe Checkout으로 리다이렉트
+        // 결제 페이지로 리다이렉트
         window.location.href = data.url;
       } else {
         setError('결제 기능이 곧 제공될 예정입니다.');
@@ -57,16 +58,16 @@ export default function UpgradeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/40"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative z-10 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+          className="absolute right-4 top-4 text-text-secondary hover:text-text-primary transition-colors"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -81,28 +82,30 @@ export default function UpgradeModal({
             </svg>
           </div>
 
-          <h3 className="mt-4 text-lg font-semibold text-gray-900">
+          <h3 className="mt-4 text-lg font-semibold text-text-primary">
             {limitTypeText} 한도 도달
           </h3>
 
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-text-secondary">
             Free 플랜의 {limitTypeText} 한도({currentUsage}/{limit})에 도달했습니다.
             <br />
             Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.
           </p>
 
           {/* Pro Features */}
-          <div className="mt-4 rounded-lg bg-blue-50 p-4">
-            <h4 className="text-sm font-medium text-blue-900">Pro 플랜 ($10/월)</h4>
-            <ul className="mt-2 space-y-1 text-left text-sm text-blue-800">
+          <div className="mt-4 rounded-xl bg-lime/10 p-4">
+            <h4 className="text-sm font-medium text-text-primary">
+              {PLAN_CONFIG.pro.name} 플랜 (${PLAN_CONFIG.pro.price}/월)
+            </h4>
+            <ul className="mt-2 space-y-1 text-left text-sm text-text-secondary">
               <li className="flex items-center gap-2">
-                <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="h-4 w-4 text-text-primary" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 무제한 크루 생성
               </li>
               <li className="flex items-center gap-2">
-                <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="h-4 w-4 text-text-primary" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 무제한 메시지
@@ -112,7 +115,7 @@ export default function UpgradeModal({
 
           {/* Error */}
           {error && (
-            <div className="mt-4 rounded-md bg-red-50 p-3">
+            <div className="mt-4 rounded-xl bg-red-50 p-3">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
@@ -121,14 +124,14 @@ export default function UpgradeModal({
           <div className="mt-6 flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex-1 rounded-full border border-subtle-gray px-4 py-2.5 text-sm font-medium text-text-secondary hover:bg-hover-gray transition-all"
             >
               나중에
             </button>
             <button
               onClick={handleUpgrade}
               disabled={isLoading}
-              className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-full bg-lime px-4 py-2.5 text-sm font-medium text-text-primary hover:bg-lime-hover disabled:cursor-not-allowed disabled:opacity-50 transition-all"
             >
               {isLoading ? '처리 중...' : 'Pro 업그레이드'}
             </button>

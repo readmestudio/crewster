@@ -33,8 +33,8 @@ model Subscription {
   userId               String    @unique
   plan                 String    @default("free")  // "free" | "pro"
   status               String    @default("active") // "active" | "canceled" | "past_due"
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
+  paymentCustomerId     String?
+  paymentSubscriptionId String?
   currentPeriodStart   DateTime  @default(now())
   currentPeriodEnd     DateTime?
   createdAt            DateTime  @default(now())

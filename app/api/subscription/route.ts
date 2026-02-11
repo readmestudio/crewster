@@ -8,8 +8,7 @@ import {
 import {
   createCheckoutSession,
   cancelSubscription,
-  createPortalSession,
-} from '@/lib/stripe';
+} from '@/lib/payment';
 import { rateLimit } from '@/lib/rate-limit';
 
 // GET: 현재 구독 상태 조회
@@ -40,8 +39,8 @@ export async function GET(request: NextRequest) {
         plan: subscription.plan,
         status: subscription.status,
         currentPeriodEnd: subscription.currentPeriodEnd,
-        stripeCustomerId: subscription.stripeCustomerId,
-        stripeSubscriptionId: subscription.stripeSubscriptionId,
+        paymentCustomerId: subscription.paymentCustomerId,
+        paymentSubscriptionId: subscription.paymentSubscriptionId,
       },
     });
   } catch (error) {
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Pro 업그레이드 (Stripe Checkout 생성)
+// POST: Pro 업그레이드 (결제 세션 생성)
 export async function POST(request: NextRequest) {
   try {
     const limited = rateLimit(request);
@@ -83,13 +82,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Stripe Checkout 세션 생성 (TODO)
+    // 결제 세션 생성 (TODO: NICE Pay 연동)
     const { url } = await createCheckoutSession(auth.userId, user.email);
 
     if (!url) {
       return NextResponse.json(
         {
-          error: 'Stripe 결제 기능이 아직 구현되지 않았습니다.',
+          error: '결제 기능이 곧 제공될 예정입니다.',
           message: 'Pro 업그레이드는 곧 제공될 예정입니다.',
         },
         { status: 501 }
@@ -126,23 +125,23 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (!subscription.stripeSubscriptionId) {
+    if (!subscription.paymentSubscriptionId) {
       return NextResponse.json(
         {
-          error: 'Stripe 구독 정보가 없습니다.',
+          error: '결제 구독 정보가 없습니다.',
           message: '고객센터에 문의해주세요.',
         },
         { status: 400 }
       );
     }
 
-    // Stripe 구독 취소 (TODO)
-    const { success } = await cancelSubscription(subscription.stripeSubscriptionId);
+    // 구독 취소 (TODO: NICE Pay 연동)
+    const { success } = await cancelSubscription(subscription.paymentSubscriptionId);
 
     if (!success) {
       return NextResponse.json(
         {
-          error: 'Stripe 취소 기능이 아직 구현되지 않았습니다.',
+          error: '결제 기능이 곧 제공될 예정입니다.',
         },
         { status: 501 }
       );

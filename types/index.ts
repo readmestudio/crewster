@@ -17,8 +17,8 @@ export interface Subscription {
   userId: string;
   plan: PlanType;
   status: SubscriptionStatus;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
+  paymentCustomerId: string | null;
+  paymentSubscriptionId: string | null;
   currentPeriodStart: Date;
   currentPeriodEnd: Date | null;
   createdAt: Date;
